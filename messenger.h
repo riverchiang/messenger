@@ -18,8 +18,15 @@
 #include <QLineEdit>
 #include <QFileDialog>
 #include <QVector>
+#include <QComboBox>
+
+#include <QDataStream>
+#include <QTcpSocket>
 
 #include <QDebug>
+
+class QTcpSocket;
+class QNetworkSession;
 
 namespace Ui {
 class Messenger;
@@ -39,6 +46,7 @@ private slots:
     void clickClear();
 
     void newFile();
+    void readNetwork();
 
 private:
     Ui::Messenger *ui;
@@ -57,23 +65,35 @@ private:
     QVector<QVBoxLayout *> friendList;
 
     // Login information
+    QLabel *comboboxLabel;
     QLabel *nameLabel;
     QLabel *passwdLabel;
     QLineEdit *nameLine;
     QLineEdit *passwdLine;
-    QPushButton *loginBtn;
+    QPushButton *enterBtn;
     QPushButton *clearBtn;
+    QComboBox *registerLoginComboBox;
+    QLabel *statusLabel;
 
     // Function
     void loginPage();
     void messagePage();
     void clearLoginPage();
     void callFriend(QString name);
+    void authUser(bool isAuth);
+    void sendNetworkCmd(quint64 cmdID, QString message);
+
     int dialog_num = 0;
 
     QMenu *fileMenu;
     QAction *openAct;
     QLabel *test;
+
+    QTcpSocket *tcpSocket = nullptr;
+    QDataStream in;
+
+    quint64 cmdID = 0;
+    quint64 blockSize = 0;
 };
 
 #endif // MESSENGER_H

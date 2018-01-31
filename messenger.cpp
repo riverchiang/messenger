@@ -20,6 +20,12 @@ Messenger::Messenger(QWidget *parent) :
     fileMenu = menuBar()->addMenu(tr("&File"));
     fileMenu->addAction(openAct);
 
+    tcpSocket = new QTcpSocket(this);
+    in.setDevice(tcpSocket);
+    in.setVersion(QDataStream::Qt_5_9);
+    connect(tcpSocket, &QIODevice::readyRead, this, &Messenger::readNetwork);
+    tcpSocket->abort();
+    tcpSocket->connectToHost("127.0.0.1", 54321);
 
     loginPage();
 
@@ -61,6 +67,42 @@ Messenger::Messenger(QWidget *parent) :
     */
 }
 
+void Messenger::readNetwork()
+{
+    if (cmdID == 0) {
+        if (tcpSocket->bytesAvailable() < (int)sizeof(quint64))
+            return;
+        in >> cmdID;
+        qDebug() << "cmdid" <<cmdID;
+    }
+
+    if (blockSize == 0) {
+        if (tcpSocket->bytesAvailable() < (int)sizeof(quint64))
+            return;
+        in >> blockSize;
+        qDebug() << blockSize;
+    }
+
+    if (tcpSocket->bytesAvailable() < blockSize)
+        return;
+
+    QString myData;
+    in >> myData;
+    qDebug() << "myData " << myData;
+
+    if (cmdID == 1)
+        statusLabel->setText(myData);
+    if (cmdID == 2) {
+        int ret = myData.compare(QString("yes"));
+        if (!ret)
+            authUser(true);
+        else
+            authUser(false);
+    }
+
+    cmdID = 0;
+    blockSize = 0;
+}
 
 void MessengerTab::tabChange(int index)
 {
@@ -75,40 +117,55 @@ void Messenger::newFile()
 
 void Messenger::loginPage()
 {
+    comboboxLabel = new QLabel("register/Login");
     nameLabel = new QLabel("Enter name: ");
     passwdLabel = new QLabel("Enter password: ");
+    statusLabel = new QLabel;
+    registerLoginComboBox =new QComboBox;
+    registerLoginComboBox->setEditable(false);
+    registerLoginComboBox->insertItem(0, "Register");
+    registerLoginComboBox->insertItem(1, "Login");
     nameLine = new QLineEdit;
     passwdLine = new QLineEdit;
-    loginBtn = new QPushButton("Login");
+    enterBtn = new QPushButton("Enter");
     clearBtn = new QPushButton("clear input");
 
-    infoLayout->addWidget(nameLabel, 1, 0);
-    infoLayout->addWidget(nameLine, 1, 1);
-    infoLayout->addWidget(passwdLabel, 2, 0);
-    infoLayout->addWidget(passwdLine, 2, 1);
-    infoLayout->addWidget(loginBtn, 3, 0);
-    infoLayout->addWidget(clearBtn, 3, 1);
+    infoLayout->addWidget(comboboxLabel, 1, 0);
+    infoLayout->addWidget(registerLoginComboBox, 1, 1);
+    infoLayout->addWidget(nameLabel, 2, 0);
+    infoLayout->addWidget(nameLine, 2, 1);
+    infoLayout->addWidget(passwdLabel, 3, 0);
+    infoLayout->addWidget(passwdLine, 3, 1);
+    infoLayout->addWidget(enterBtn, 4, 0);
+    infoLayout->addWidget(clearBtn, 4, 1);
+
+    infoLayout->addWidget(statusLabel, 5, 0);
 
     QLabel *my = new QLabel();
-    QPixmap *p = new QPixmap("L:/Users/admin/Documents/icon.jpg");
+    QPixmap *p = new QPixmap("C:/Users/A60013/Pictures/new.jpg");
     QPixmap p1(p->scaled(100, 100, Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
     my->setPixmap(p1);
-    //infoLayout->addWidget(my, 0, 0);
+    infoLayout->addWidget(my, 0, 0);
 
     test = new QLabel();
     //infoLayout->addWidget(test, 0, 1);
 
-    QObject::connect(loginBtn, SIGNAL(clicked()), this, SLOT(clickLogin()));
+    QObject::connect(enterBtn, SIGNAL(clicked()), this, SLOT(clickLogin()));
     QObject::connect(clearBtn, SIGNAL(clicked()), this, SLOT(clickClear()));
 
 }
 
-bool authUser(QString name, QString passwd)
+void Messenger::authUser(bool isAuth)
 {
-    if (name == "" && passwd == "")
-        return true;
+    if (isAuth == true)
+    {
+        clearLoginPage();
+        messagePage();
+    }
     else
-        return false;
+    {
+        QMessageBox::warning(this,"System information", "Invalid User or Password");
+    }
 }
 
 void Messenger::clearLoginPage()
@@ -117,29 +174,60 @@ void Messenger::clearLoginPage()
     infoLayout->removeWidget(nameLine);
     infoLayout->removeWidget(passwdLabel);
     infoLayout->removeWidget(passwdLine);
-    infoLayout->removeWidget(loginBtn);
+    infoLayout->removeWidget(enterBtn);
     infoLayout->removeWidget(clearBtn);
 
     nameLabel->hide();
     nameLine->hide();
     passwdLabel->hide();
     passwdLine->hide();
-    loginBtn->hide();
+    enterBtn->hide();
     clearBtn->hide();
+}
+
+void Messenger::sendNetworkCmd(quint64 cmdID, QString message)
+{
+    QByteArray block;
+    QDataStream out(&block, QIODevice::WriteOnly);
+    out.setVersion(QDataStream::Qt_5_9);
+
+    qDebug() << message;
+
+    out << (quint64)0;
+    out << (quint64)0;
+    out << message;
+    out.device()->seek(0);
+    out << cmdID;
+    out.device()->seek(sizeof(quint64));
+    out << (quint64)(block.size() - (2 * sizeof(quint64)));
+
+    tcpSocket->write(block);
+    tcpSocket->waitForBytesWritten();
 }
 
 void Messenger::clickLogin()
 {
+    //qDebug() << registerLoginComboBox->currentIndex();
     QString name = nameLine->text();
     QString passwd = passwdLine->text();
-    if (authUser(name, passwd) == true)
+    if (registerLoginComboBox->currentIndex() == 0)
     {
-        clearLoginPage();
-        messagePage();
+        sendNetworkCmd(1, name + " " + passwd + " ");
     }
-    else
-    {
-        QMessageBox::warning(this,"System information", "Invalid User or Password");
+    else {
+        sendNetworkCmd(2, name + " " + passwd + " ");
+        //if (authUser(name, passwd) == true)
+        /*
+        if (isAuth == true)
+        {
+            clearLoginPage();
+            messagePage();
+        }
+        else
+        {
+            QMessageBox::warning(this,"System information", "Invalid User or Password");
+        }
+        */
     }
 }
 
