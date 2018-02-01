@@ -146,7 +146,7 @@ void Messenger::loginPage()
     infoLayout->addWidget(statusLabel, 5, 0);
 
     QLabel *my = new QLabel();
-    QPixmap *p = new QPixmap("C:/Users/A60013/Pictures/new.jpg");
+    QPixmap *p = new QPixmap(":/list/login.jpg");
     QPixmap p1(p->scaled(100, 100, Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
     my->setPixmap(p1);
     infoLayout->addWidget(my, 0, 1);

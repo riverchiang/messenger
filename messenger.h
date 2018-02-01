@@ -95,6 +95,9 @@ private:
     quint64 cmdID = 0;
     quint64 blockSize = 0;
     int clientUid = 0;
+
+    //QString picFolder = "C:/Users/A60013/Pictures/temp/";
+    QString picFolder = "L:/Users/admin/Pictures/temp/";
 };
 
 #endif // MESSENGER_H
