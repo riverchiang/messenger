@@ -90,8 +90,12 @@ void Messenger::readNetwork()
     in >> myData;
     qDebug() << "myData " << myData;
 
-    if (cmdID == 1)
-        statusLabel->setText(myData);
+    if (cmdID == 1) {
+        QString uid = myData.split("|").at(0);
+        QString message = myData.split("|").at(1);
+        clientUid = uid.toInt();
+        statusLabel->setText(message);
+    }
     if (cmdID == 2) {
         int ret = myData.compare(QString("yes"));
         if (!ret)
@@ -111,8 +115,8 @@ void MessengerTab::tabChange(int index)
 
 void Messenger::newFile()
 {
-    QString s = QFileDialog::getOpenFileName(this,tr("開啟檔案"),"/","Head files(*.jpg)");
-    test->setText(s);
+    QString file = QFileDialog::getOpenFileName(this,tr("開啟檔案"),"/","Head files(*.jpg)");
+    sendNetworkfile(file);
 }
 
 void Messenger::loginPage()
@@ -145,10 +149,7 @@ void Messenger::loginPage()
     QPixmap *p = new QPixmap("C:/Users/A60013/Pictures/new.jpg");
     QPixmap p1(p->scaled(100, 100, Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
     my->setPixmap(p1);
-    infoLayout->addWidget(my, 0, 0);
-
-    test = new QLabel();
-    //infoLayout->addWidget(test, 0, 1);
+    infoLayout->addWidget(my, 0, 1);
 
     QObject::connect(enterBtn, SIGNAL(clicked()), this, SLOT(clickLogin()));
     QObject::connect(clearBtn, SIGNAL(clicked()), this, SLOT(clickClear()));
@@ -200,6 +201,34 @@ void Messenger::sendNetworkCmd(quint64 cmdID, QString message)
     out << cmdID;
     out.device()->seek(sizeof(quint64));
     out << (quint64)(block.size() - (2 * sizeof(quint64)));
+
+    tcpSocket->write(block);
+    tcpSocket->waitForBytesWritten();
+}
+
+void Messenger::sendNetworkfile(QString filePath)
+{
+    QFile file(filePath);
+    if (!file.open(QFile::ReadOnly))
+    {
+        qDebug() << "open file path " + filePath + "failed";
+        return;
+    }
+
+    QByteArray block;
+    QDataStream out(&block, QIODevice::WriteOnly);
+    out.setVersion(QDataStream::Qt_5_9);
+
+    out << (quint64)0;
+    out << (quint64)0;
+    out << (quint64)0;
+    out << file.readAll();
+    out.device()->seek(0);
+    out << (quint64)6;
+    out.device()->seek(sizeof(quint64));
+    out << (quint64)(block.size() - (3 * sizeof(quint64)));
+    out.device()->seek(2 * sizeof(quint64));
+    out << (quint64)clientUid;
 
     tcpSocket->write(block);
     tcpSocket->waitForBytesWritten();

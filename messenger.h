@@ -82,18 +82,19 @@ private:
     void callFriend(QString name);
     void authUser(bool isAuth);
     void sendNetworkCmd(quint64 cmdID, QString message);
+    void sendNetworkfile(QString filePath);
 
     int dialog_num = 0;
 
     QMenu *fileMenu;
     QAction *openAct;
-    QLabel *test;
 
     QTcpSocket *tcpSocket = nullptr;
     QDataStream in;
 
     quint64 cmdID = 0;
     quint64 blockSize = 0;
+    int clientUid = 0;
 };
 
 #endif // MESSENGER_H
