@@ -32,6 +32,12 @@ namespace Ui {
 class Messenger;
 }
 
+struct friendInfo
+{
+    QString name;
+    int uid;
+};
+
 class Messenger : public QMainWindow
 {
     Q_OBJECT
@@ -75,6 +81,9 @@ private:
     QComboBox *registerLoginComboBox;
     QLabel *statusLabel;
 
+    QScrollArea *friendInfoList;
+    QVBoxLayout *friendListVBLayout;
+
     // Function
     void loginPage();
     void messagePage();
@@ -83,6 +92,7 @@ private:
     void authUser(bool isAuth);
     void sendNetworkCmd(quint64 cmdID, QString message);
     void sendNetworkfile(QString filePath);
+    void sendGetFriendList();
 
     int dialog_num = 0;
 
@@ -98,6 +108,7 @@ private:
 
     //QString picFolder = "C:/Users/A60013/Pictures/temp/";
     QString picFolder = "L:/Users/admin/Pictures/temp/";
+    QVector<struct friendInfo> friendVector;
 };
 
 #endif // MESSENGER_H

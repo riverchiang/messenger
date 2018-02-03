@@ -30,3 +30,6 @@ HEADERS  += messenger.h \
     messengertab.h
 
 FORMS    += messenger.ui
+
+RESOURCES += \
+    pictures.qrc

@@ -93,15 +93,32 @@ void Messenger::readNetwork()
     if (cmdID == 1) {
         QString uid = myData.split("|").at(0);
         QString message = myData.split("|").at(1);
-        clientUid = uid.toInt();
+        //clientUid = uid.toInt();
         statusLabel->setText(message);
     }
     if (cmdID == 2) {
-        int ret = myData.compare(QString("yes"));
-        if (!ret)
+        QString auth = myData.split(" ").at(0);
+        QString uid = myData.split(" ").at(1);
+        int ret = auth.compare(QString("yes"));
+        if (!ret) {
             authUser(true);
-        else
+            clientUid = uid.toInt();
+        }
+        else {
             authUser(false);
+        }
+    }
+
+    if (cmdID == 3) {
+        QString num = myData.split(" ").at(0);
+        for (int i = 0; i < num.toInt(); ++i) {
+            QString name = myData.split(" ").at(2*i + 1);
+            QString uid = myData.split(" ").at(2 * (i + 1));
+            struct friendInfo tempInfo;
+            tempInfo.name = name;
+            tempInfo.uid = uid.toInt();
+            friendVector.push_back(tempInfo);
+        }
     }
 
     cmdID = 0;
@@ -280,6 +297,11 @@ void Messenger::callFriend(QString name)
     firendTabs->addTab(myScroll, name);
 }
 
+void Messenger::sendGetFriendList()
+{
+    sendNetworkCmd(3, QString::number(clientUid));
+}
+
 void Messenger::messagePage()
 {
     sendMsgBtn = new QPushButton("send");
@@ -287,6 +309,11 @@ void Messenger::messagePage()
     inputArea->setFixedSize(300, 300);
     inputArea->setFocus();
 
+    friendInfoList = new QScrollArea;
+    QFrame *scrollFrame = new QFrame;
+    friendListVBLayout = new QVBoxLayout(scrollFrame);
+    friendInfoList->setWidget(scrollFrame);
+    friendInfoList->setWidgetResizable(true);
     /*
     messageArea = new QScrollArea;
     scrollFrame = new QFrame;
@@ -298,6 +325,7 @@ void Messenger::messagePage()
 
     infoLayout->addWidget(messageArea, 0, 0);
     */
+    sendGetFriendList();
 
     messageArea = new QWidget;
     firendTabs = new MessengerTab(messageArea);
