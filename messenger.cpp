@@ -1,5 +1,6 @@
 #include "messenger.h"
 #include "ui_messenger.h"
+#include "clickablelabel.h"
 
 Messenger::Messenger(QWidget *parent) :
     QMainWindow(parent),
@@ -26,6 +27,12 @@ Messenger::Messenger(QWidget *parent) :
     connect(tcpSocket, &QIODevice::readyRead, this, &Messenger::readNetwork);
     tcpSocket->abort();
     tcpSocket->connectToHost("127.0.0.1", 54321);
+
+    pollingTimer = new QTimer(this);
+    pollingTimer->setInterval(3000);
+    if (pollingTimer->isActive())
+        pollingTimer->stop();
+    connect(pollingTimer, SIGNAL(timeout()), this, SLOT(pollingServer()));
 
     loginPage();
 
@@ -73,14 +80,12 @@ void Messenger::readNetwork()
         if (tcpSocket->bytesAvailable() < (int)sizeof(quint64))
             return;
         in >> cmdID;
-        qDebug() << "cmdid" <<cmdID;
     }
 
     if (blockSize == 0) {
         if (tcpSocket->bytesAvailable() < (int)sizeof(quint64))
             return;
         in >> blockSize;
-        qDebug() << blockSize;
     }
 
     if (tcpSocket->bytesAvailable() < blockSize)
@@ -88,12 +93,10 @@ void Messenger::readNetwork()
 
     QString myData;
     in >> myData;
-    qDebug() << "myData " << myData;
 
     if (cmdID == 1) {
         QString uid = myData.split("|").at(0);
         QString message = myData.split("|").at(1);
-        //clientUid = uid.toInt();
         statusLabel->setText(message);
     }
     if (cmdID == 2) {
@@ -101,8 +104,8 @@ void Messenger::readNetwork()
         QString uid = myData.split(" ").at(1);
         int ret = auth.compare(QString("yes"));
         if (!ret) {
-            authUser(true);
             clientUid = uid.toInt();
+            authUser(true);
         }
         else {
             authUser(false);
@@ -111,18 +114,71 @@ void Messenger::readNetwork()
 
     if (cmdID == 3) {
         QString num = myData.split(" ").at(0);
+        friendVectorNew.clear();
         for (int i = 0; i < num.toInt(); ++i) {
             QString name = myData.split(" ").at(2*i + 1);
             QString uid = myData.split(" ").at(2 * (i + 1));
-            struct friendInfo tempInfo;
-            tempInfo.name = name;
-            tempInfo.uid = uid.toInt();
-            friendVector.push_back(tempInfo);
+            if (!checkfriendVectorExist(name)) {
+                struct friendInfo tempInfo;
+                tempInfo.name = name;
+                tempInfo.uid = uid.toInt();
+                friendVector.push_back(tempInfo);
+                friendVectorNew.push_back(tempInfo);
+            }
         }
+
+        addFriendList();
     }
 
     cmdID = 0;
     blockSize = 0;
+}
+
+void Messenger::addFriendList()
+{
+    /*
+    ClickableLabel *my = new ClickableLabel;
+    ClickableLabel *my1 = new ClickableLabel;
+    QPixmap *pixmap = new QPixmap(100, 30);
+    pixmap->fill(Qt::transparent);
+    QPainter *painter = new QPainter(pixmap);
+    painter->drawPixmap(0, 0, 30, 30, QPixmap(":/list/login.jpg"));
+    painter->drawText(30, 0, 70, 30, Qt::AlignCenter, "send info");
+    painter->end();
+    my->setPixmap(*pixmap);
+    my1->setPixmap(*pixmap);
+    connect(my, SIGNAL(clicked()), signalMapper, SLOT(map()));
+    connect(my1, SIGNAL(clicked()), signalMapper, SLOT(map()));
+    signalMapper->setMapping(my, 1);
+    signalMapper->setMapping(my1, 2);
+    connect(signalMapper, SIGNAL(mapped(int)), this, SLOT(handleCallFriend(int)));
+    */
+
+    for (int i = 0; i < friendVectorNew.count(); ++i) {
+
+        ClickableLabel *newFriend = new ClickableLabel;
+        QPixmap *pixmap = new QPixmap(100, 30);
+        pixmap->fill(Qt::transparent);
+        QPainter *painter = new QPainter(pixmap);
+        painter->drawPixmap(0, 0, 30, 30, QPixmap(":/list/login.jpg"));
+        painter->drawText(30, 0, 70, 30, Qt::AlignCenter, friendVectorNew[i].name);
+        painter->end();
+        newFriend->setPixmap(*pixmap);
+        connect(newFriend, SIGNAL(clicked()), signalMapper, SLOT(map()));
+        signalMapper->setMapping(newFriend, friendVectorNew[i].uid);
+        connect(signalMapper, SIGNAL(mapped(int)), this, SLOT(handleCallFriend(int)));
+        friendListVBLayout->addWidget(newFriend);
+
+    }
+}
+
+bool Messenger::checkfriendVectorExist(QString name)
+{
+    for (int i = 0; i < friendVector.count(); ++i) {
+        if (name == friendVector[i].name)
+            return true;
+    }
+    return false;
 }
 
 void MessengerTab::tabChange(int index)
@@ -162,11 +218,11 @@ void Messenger::loginPage()
 
     infoLayout->addWidget(statusLabel, 5, 0);
 
-    QLabel *my = new QLabel();
+    userIcon = new QLabel();
     QPixmap *p = new QPixmap(":/list/login.jpg");
     QPixmap p1(p->scaled(100, 100, Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
-    my->setPixmap(p1);
-    infoLayout->addWidget(my, 0, 1);
+    userIcon->setPixmap(p1);
+    infoLayout->addWidget(userIcon, 0, 1);
 
     QObject::connect(enterBtn, SIGNAL(clicked()), this, SLOT(clickLogin()));
     QObject::connect(clearBtn, SIGNAL(clicked()), this, SLOT(clickClear()));
@@ -182,25 +238,34 @@ void Messenger::authUser(bool isAuth)
     }
     else
     {
+        passwdLine->setText("");
         QMessageBox::warning(this,"System information", "Invalid User or Password");
     }
 }
 
 void Messenger::clearLoginPage()
 {
+    infoLayout->removeWidget(comboboxLabel);
+    infoLayout->removeWidget(registerLoginComboBox);
+    infoLayout->removeWidget(userIcon);
     infoLayout->removeWidget(nameLabel);
     infoLayout->removeWidget(nameLine);
     infoLayout->removeWidget(passwdLabel);
     infoLayout->removeWidget(passwdLine);
     infoLayout->removeWidget(enterBtn);
     infoLayout->removeWidget(clearBtn);
+    infoLayout->removeWidget(statusLabel);
 
+    comboboxLabel->hide();
+    registerLoginComboBox->hide();
+    userIcon->hide();
     nameLabel->hide();
     nameLine->hide();
     passwdLabel->hide();
     passwdLine->hide();
     enterBtn->hide();
     clearBtn->hide();
+    statusLabel->hide();
 }
 
 void Messenger::sendNetworkCmd(quint64 cmdID, QString message)
@@ -208,8 +273,6 @@ void Messenger::sendNetworkCmd(quint64 cmdID, QString message)
     QByteArray block;
     QDataStream out(&block, QIODevice::WriteOnly);
     out.setVersion(QDataStream::Qt_5_9);
-
-    qDebug() << message;
 
     out << (quint64)0;
     out << (quint64)0;
@@ -259,6 +322,7 @@ void Messenger::clickLogin()
     if (registerLoginComboBox->currentIndex() == 0)
     {
         sendNetworkCmd(1, name + " " + passwd + " ");
+        passwdLine->setText("");
     }
     else {
         sendNetworkCmd(2, name + " " + passwd + " ");
@@ -294,12 +358,38 @@ void Messenger::callFriend(QString name)
 
     myScroll->setWidget(scrollFrame);
     myScroll->setWidgetResizable(true);
-    firendTabs->addTab(myScroll, name);
+
+    friendTabs->addTab(myScroll, name);
 }
 
 void Messenger::sendGetFriendList()
 {
     sendNetworkCmd(3, QString::number(clientUid));
+}
+
+void Messenger::pollingServer()
+{
+    sendGetFriendList();
+}
+
+void Messenger::handleCallFriend(int param)
+{
+    QString name;
+    bool isExist = false;
+
+    for (int i = 0; i < friendVector.count(); ++i) {
+        if (param == friendVector[i].uid) {
+            name = friendVector[i].name;
+        }
+    }
+
+    for (int i = 0; i < friendTabs->count(); ++i) {
+        if (friendTabs->tabText(i) == name)
+            isExist = true;
+    }
+
+    if (!isExist)
+        callFriend(name);
 }
 
 void Messenger::messagePage()
@@ -314,6 +404,8 @@ void Messenger::messagePage()
     friendListVBLayout = new QVBoxLayout(scrollFrame);
     friendInfoList->setWidget(scrollFrame);
     friendInfoList->setWidgetResizable(true);
+
+    signalMapper = new QSignalMapper(this); // for friend dialog
     /*
     messageArea = new QScrollArea;
     scrollFrame = new QFrame;
@@ -325,23 +417,41 @@ void Messenger::messagePage()
 
     infoLayout->addWidget(messageArea, 0, 0);
     */
-    sendGetFriendList();
 
-    messageArea = new QWidget;
-    firendTabs = new MessengerTab(messageArea);
 
-    callFriend("John");
-    callFriend("Max");
+    if (!pollingTimer->isActive())
+        pollingTimer->start();
 
-    infoLayout->addWidget(messageArea, 0, 0);
+
+    friendTabs = new MessengerTab(this);
+
+    friendTabs->setStyleSheet("QTabBar::tab { min-width: 300px;}");
+    //callFriend("blank");
+
+    infoLayout->addWidget(friendInfoList, 1, 1);
+
+    // self pic icon
+    QLabel *cover = new QLabel();
+    QPixmap pix(":/list/login.jpg");
+    pix = pix.scaled(50, 50, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    cover->setPixmap(pix);
+    cover->setStyleSheet("border:2px solid grey;border-radius: 10px;background-color: transparent;");
+    infoLayout->addWidget(cover, 0, 1);
+
+    infoLayout->addWidget(friendTabs, 0, 0);
+
+    infoLayout->setColumnMinimumWidth(0, 300);
+    infoLayout->setRowMinimumHeight(0, 300);
+
     infoLayout->addWidget(inputArea, 1, 0);
-    infoLayout->addWidget(sendMsgBtn, 1, 1);
+    infoLayout->addWidget(sendMsgBtn, 2, 0);
 
     QObject::connect(sendMsgBtn, SIGNAL(clicked()),this, SLOT(clickSendMsg()));
 }
 
 void Messenger::clickSendMsg()
 {
+    qDebug() << "clickSendMsg";
     QLabel *new_label1 = new QLabel;
     QLabel *new_label2 = new QLabel;
 
@@ -356,8 +466,9 @@ void Messenger::clickSendMsg()
     labelLayout->addWidget(new_label2);
 
     //tabelLayout->addLayout(labelLayout);
-    qDebug() << firendTabs->currentIndex();
-    friendList.at(firendTabs->currentIndex())->addLayout(labelLayout);
+    qDebug() << "friendtabs idx " << friendTabs->currentIndex();
+    qDebug() << "name " << friendTabs->tabText(friendTabs->currentIndex());
+    friendList.at(friendTabs->currentIndex())->addLayout(labelLayout);
     dialog_num++;
 }
 

@@ -24,10 +24,12 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 
 SOURCES += main.cpp\
-        messenger.cpp
+        messenger.cpp \
+    clickablelabel.cpp
 
 HEADERS  += messenger.h \
-    messengertab.h
+    messengertab.h \
+    clickablelabel.h
 
 FORMS    += messenger.ui
 

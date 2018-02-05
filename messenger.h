@@ -22,6 +22,9 @@
 
 #include <QDataStream>
 #include <QTcpSocket>
+#include <QTimer>
+#include <QPainter>
+#include <QSignalMapper>
 
 #include <QDebug>
 
@@ -53,6 +56,8 @@ private slots:
 
     void newFile();
     void readNetwork();
+    void pollingServer();
+    void handleCallFriend(int param);
 
 private:
     Ui::Messenger *ui;
@@ -66,11 +71,11 @@ private:
     //QFrame *scrollFrame;
     QPushButton *sendMsgBtn;
 
-    MessengerTab *firendTabs;
-    QWidget *messageArea;
+    MessengerTab *friendTabs = nullptr;
     QVector<QVBoxLayout *> friendList;
 
     // Login information
+    QLabel *userIcon;
     QLabel *comboboxLabel;
     QLabel *nameLabel;
     QLabel *passwdLabel;
@@ -93,6 +98,8 @@ private:
     void sendNetworkCmd(quint64 cmdID, QString message);
     void sendNetworkfile(QString filePath);
     void sendGetFriendList();
+    bool checkfriendVectorExist(QString name);
+    void addFriendList();
 
     int dialog_num = 0;
 
@@ -109,6 +116,9 @@ private:
     //QString picFolder = "C:/Users/A60013/Pictures/temp/";
     QString picFolder = "L:/Users/admin/Pictures/temp/";
     QVector<struct friendInfo> friendVector;
+    QVector<struct friendInfo> friendVectorNew;
+    QTimer *pollingTimer;
+    QSignalMapper *signalMapper;
 };
 
 #endif // MESSENGER_H
