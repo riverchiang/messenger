@@ -36,42 +36,6 @@ Messenger::Messenger(QWidget *parent) :
 
     loginPage();
 
-
-
-    /*
-    QWidget *centralWidget = new QWidget;
-    MessageTab *tabs = new MessageTab(centralWidget());
-
-    tabs->setFixedSize(245, 245);
-    tabs->addTab(new QWidget(),"TAB 1");
-    tabs->addTab(new QWidget(),"TAB 2");
-
-    tabs->setTabsClosable(true);
-    setCentralWidget(centralWidget);
-    */
-
-    /*
-    QPushButton *button1 = new QPushButton("button1");
-    mylineedit = new QTextEdit(this);
-    mylineedit->setFocus();
-
-
-    scrollArea = new QScrollArea;
-
-    my = new QFrame;
-    my->setStyleSheet("background-color:white;");
-    tabelLayout = new QVBoxLayout(my);
-
-    scrollArea->setWidget(my);
-    scrollArea->setWidgetResizable(true);   // important
-
-
-    infoLayout->addWidget(mylineedit, 1, 0);
-    infoLayout->addWidget(button1, 1, 1);
-    infoLayout->addWidget(scrollArea, 0, 0);
-
-    QObject::connect(button1, SIGNAL(clicked()),this, SLOT(clickedSlot()));
-    */
 }
 
 void Messenger::readNetwork()
@@ -196,10 +160,29 @@ void MessengerTab::tabChange(int index)
     qDebug() << index;
 }
 
+bool Messenger::fileExists(QString path)
+{
+    QFileInfo check_file(path);
+    if (check_file.exists() && check_file.isFile()) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 void Messenger::newFile()
 {
-    QString file = QFileDialog::getOpenFileName(this,tr("開啟檔案"),"/","Head files(*.jpg)");
-    sendNetworkfile(file);
+    QString filePath = QFileDialog::getOpenFileName(this,tr("開啟檔案"),"/","Head files(*.jpg)");
+
+    QPixmap pixmap;
+    pixmap.load(filePath);
+    QString clientFolder = picFolder + QString::number(clientUid);
+    QString clientFile = clientFolder + "/" + QString::number(clientUid) + ".jpg";
+    QFile fileSelf(clientFile);
+    fileSelf.open(QIODevice::WriteOnly);
+    pixmap.save(&fileSelf, "JPG");
+
+    sendNetworkfile(filePath);
 }
 
 void Messenger::loginPage()
@@ -336,18 +319,6 @@ void Messenger::clickLogin()
     }
     else {
         sendNetworkCmd(2, name + " " + passwd + " ");
-        //if (authUser(name, passwd) == true)
-        /*
-        if (isAuth == true)
-        {
-            clearLoginPage();
-            messagePage();
-        }
-        else
-        {
-            QMessageBox::warning(this,"System information", "Invalid User or Password");
-        }
-        */
     }
 }
 
@@ -433,6 +404,11 @@ void Messenger::messagePage()
     infoLayout->addWidget(messageArea, 0, 0);
     */
 
+    QString clientFolder = picFolder + QString::number(clientUid);
+    QDir dir(clientFolder);
+    if (!dir.exists()) {
+        dir.mkpath(".");
+    }
 
     if (!pollingTimer->isActive())
         pollingTimer->start();
@@ -488,11 +464,13 @@ void Messenger::putMsgOnTab(int tabId, QString text, bool isFriend)
     new_label2->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     if (isFriend) {
         new_label1->setText(text);
-        new_label1->setStyleSheet("background-color:gray;");
+        new_label1->setStyleSheet("color: black;background-color:#1aed4a;font: bold 14px;border-style: outset;border-width: 2px;border-radius: 10px;border-color: beige;min-width: 10em;");
+        new_label2->setStyleSheet("min-width: 10em;");
     }
     else {
         new_label2->setText(text);
-        new_label2->setStyleSheet("background-color:gray;");
+        new_label2->setStyleSheet("color: black;background-color:#eff0f4;font: bold 14px;border-style: outset;border-width: 2px;border-radius: 10px;border-color: beige;min-width: 10em;");
+        new_label1->setStyleSheet("min-width: 10em;");
     }
     QHBoxLayout *labelLayout = new QHBoxLayout;
     labelLayout->addWidget(new_label1);
@@ -513,6 +491,7 @@ void Messenger::clickSendMsg()
 
     for (int i = 0; i < friendVector.count(); ++i) {
         if (friendName == friendVector[i].name) {
+            qDebug() << "send ID 4 text";
             sendNetworkCmd(4, QString::number(clientUid) + " " + QString::number(friendVector[i].uid) +
                            " \n" + inputText + "\n");
         }

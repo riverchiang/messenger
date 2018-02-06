@@ -25,6 +25,7 @@
 #include <QTimer>
 #include <QPainter>
 #include <QSignalMapper>
+#include <QFileInfo>
 
 #include <QDebug>
 
@@ -103,6 +104,7 @@ private:
     void addFriendList();
     void putMsgOnTab(int tabId, QString text, bool isFriend);
     QString findNameByUid(int uid);
+    bool fileExists(QString path);
 
     QMenu *fileMenu;
     QAction *openAct;
@@ -114,8 +116,8 @@ private:
     quint64 blockSize = 0;
     int clientUid = 0;
 
-    //QString picFolder = "C:/Users/A60013/Pictures/temp/";
-    QString picFolder = "L:/Users/admin/Pictures/temp/";
+    //QString picFolder = "C:/Users/A60013/Pictures/temp/client/";
+    QString picFolder = "L:/Users/admin/Pictures/temp/client/";
     QVector<struct friendInfo> friendVector;
     QVector<struct friendInfo> friendVectorNew;
     QTimer *pollingTimer;
