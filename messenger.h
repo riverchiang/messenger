@@ -93,15 +93,16 @@ private:
     void loginPage();
     void messagePage();
     void clearLoginPage();
-    void callFriend(QString name);
+    int callFriend(QString name);
     void authUser(bool isAuth);
     void sendNetworkCmd(quint64 cmdID, QString message);
     void sendNetworkfile(QString filePath);
     void sendGetFriendList();
+    void sendGetMessage();
     bool checkfriendVectorExist(QString name);
     void addFriendList();
-
-    int dialog_num = 0;
+    void putMsgOnTab(int tabId, QString text, bool isFriend);
+    QString findNameByUid(int uid);
 
     QMenu *fileMenu;
     QAction *openAct;

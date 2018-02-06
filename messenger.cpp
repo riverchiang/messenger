@@ -116,7 +116,7 @@ void Messenger::readNetwork()
         QString num = myData.split(" ").at(0);
         friendVectorNew.clear();
         for (int i = 0; i < num.toInt(); ++i) {
-            QString name = myData.split(" ").at(2*i + 1);
+            QString name = myData.split(" ").at(2 * i + 1);
             QString uid = myData.split(" ").at(2 * (i + 1));
             if (!checkfriendVectorExist(name)) {
                 struct friendInfo tempInfo;
@@ -130,30 +130,40 @@ void Messenger::readNetwork()
         addFriendList();
     }
 
+    if (cmdID == 5) {
+        qDebug() << "cmdid 5 " << myData;
+        QString num = myData.split("\n").at(0);
+        for (int i = 0; i < num.toInt(); ++i) {
+            QString uid = myData.split("\n").at(2 * i + 1);
+            QString text = myData.split("\n").at(2 * (i + 1));
+            //putMsgOnTab(uid.toInt(), text);
+
+            QString name = findNameByUid(uid.toInt());
+            bool findFriendOnTab = false;
+            int tabIndex, j;
+            for (j = 0; j < friendTabs->count(); ++j) {
+                if (name == friendTabs->tabText(j)) {
+                    findFriendOnTab = true;
+                    break;
+                }
+            }
+
+            if (findFriendOnTab) {
+                putMsgOnTab(j, text, true);
+            }
+            else {
+                tabIndex = callFriend(name);
+                putMsgOnTab(tabIndex, text, true);
+            }
+        }
+    }
+
     cmdID = 0;
     blockSize = 0;
 }
 
 void Messenger::addFriendList()
 {
-    /*
-    ClickableLabel *my = new ClickableLabel;
-    ClickableLabel *my1 = new ClickableLabel;
-    QPixmap *pixmap = new QPixmap(100, 30);
-    pixmap->fill(Qt::transparent);
-    QPainter *painter = new QPainter(pixmap);
-    painter->drawPixmap(0, 0, 30, 30, QPixmap(":/list/login.jpg"));
-    painter->drawText(30, 0, 70, 30, Qt::AlignCenter, "send info");
-    painter->end();
-    my->setPixmap(*pixmap);
-    my1->setPixmap(*pixmap);
-    connect(my, SIGNAL(clicked()), signalMapper, SLOT(map()));
-    connect(my1, SIGNAL(clicked()), signalMapper, SLOT(map()));
-    signalMapper->setMapping(my, 1);
-    signalMapper->setMapping(my1, 2);
-    connect(signalMapper, SIGNAL(mapped(int)), this, SLOT(handleCallFriend(int)));
-    */
-
     for (int i = 0; i < friendVectorNew.count(); ++i) {
 
         ClickableLabel *newFriend = new ClickableLabel;
@@ -347,19 +357,18 @@ void Messenger::clickClear()
     passwdLine->clear();
 }
 
-void Messenger::callFriend(QString name)
+int Messenger::callFriend(QString name)
 {
     QScrollArea *myScroll = new QScrollArea;
     QFrame *scrollFrame = new QFrame;
     scrollFrame->setStyleSheet("background-color:white;");
-    scrollFrame->setFixedHeight(800);
     QVBoxLayout *tabelLayout = new QVBoxLayout(scrollFrame);
     friendList.push_back(tabelLayout);
 
     myScroll->setWidget(scrollFrame);
     myScroll->setWidgetResizable(true);
 
-    friendTabs->addTab(myScroll, name);
+    return friendTabs->addTab(myScroll, name);
 }
 
 void Messenger::sendGetFriendList()
@@ -367,9 +376,15 @@ void Messenger::sendGetFriendList()
     sendNetworkCmd(3, QString::number(clientUid));
 }
 
+void Messenger::sendGetMessage()
+{
+    sendNetworkCmd(5, QString::number(clientUid));
+}
+
 void Messenger::pollingServer()
 {
     sendGetFriendList();
+    sendGetMessage();
 }
 
 void Messenger::handleCallFriend(int param)
@@ -449,27 +464,61 @@ void Messenger::messagePage()
     QObject::connect(sendMsgBtn, SIGNAL(clicked()),this, SLOT(clickSendMsg()));
 }
 
-void Messenger::clickSendMsg()
+QString Messenger::findNameByUid(int uid)
 {
-    qDebug() << "clickSendMsg";
+    QString name = nullptr;
+    for (int i = 0; i < friendVector.count(); i++)
+    {
+        if (friendVector[i].uid == uid) {
+            name = friendVector[i].name;
+            break;
+        }
+    }
+
+    return name;
+}
+
+
+void Messenger::putMsgOnTab(int tabId, QString text, bool isFriend)
+{
     QLabel *new_label1 = new QLabel;
     QLabel *new_label2 = new QLabel;
 
     new_label1->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     new_label2->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-
-    new_label2->setText(inputArea->toPlainText());
-    new_label2->setStyleSheet("background-color:gray;");
-
+    if (isFriend) {
+        new_label1->setText(text);
+        new_label1->setStyleSheet("background-color:gray;");
+    }
+    else {
+        new_label2->setText(text);
+        new_label2->setStyleSheet("background-color:gray;");
+    }
     QHBoxLayout *labelLayout = new QHBoxLayout;
     labelLayout->addWidget(new_label1);
     labelLayout->addWidget(new_label2);
 
-    //tabelLayout->addLayout(labelLayout);
-    qDebug() << "friendtabs idx " << friendTabs->currentIndex();
-    qDebug() << "name " << friendTabs->tabText(friendTabs->currentIndex());
-    friendList.at(friendTabs->currentIndex())->addLayout(labelLayout);
-    dialog_num++;
+    friendList.at(tabId)->addLayout(labelLayout);
+}
+
+
+void Messenger::clickSendMsg()
+{
+
+    QString friendName;
+    QString inputText;
+
+    inputText = inputArea->toPlainText();
+    friendName = friendTabs->tabText(friendTabs->currentIndex());
+
+    for (int i = 0; i < friendVector.count(); ++i) {
+        if (friendName == friendVector[i].name) {
+            sendNetworkCmd(4, QString::number(clientUid) + " " + QString::number(friendVector[i].uid) +
+                           " \n" + inputText + "\n");
+        }
+    }
+
+    putMsgOnTab(friendTabs->currentIndex(), inputText, false);
 }
 
 Messenger::~Messenger()
