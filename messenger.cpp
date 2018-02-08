@@ -1,6 +1,6 @@
 #include "messenger.h"
 #include "ui_messenger.h"
-#include "clickablelabel.h"
+//#include "clickablelabel.h"
 
 Messenger::Messenger(QWidget *parent) :
     QMainWindow(parent),
@@ -52,74 +52,123 @@ void Messenger::readNetwork()
         in >> blockSize;
     }
 
-    if (tcpSocket->bytesAvailable() < blockSize)
-        return;
-
-    QString myData;
-    in >> myData;
-
-    if (cmdID == 1) {
-        QString uid = myData.split("|").at(0);
-        QString message = myData.split("|").at(1);
-        statusLabel->setText(message);
-    }
-    if (cmdID == 2) {
-        QString auth = myData.split(" ").at(0);
-        QString uid = myData.split(" ").at(1);
-        int ret = auth.compare(QString("yes"));
-        if (!ret) {
-            clientUid = uid.toInt();
-            authUser(true);
+    if (cmdID == 8) {
+        qDebug() << "cmdid 8";
+        if (friendUid == 0) {
+            if (tcpSocket->bytesAvailable() < (int)sizeof(quint64))
+                return;
+            in >> friendUid;
+            qDebug() << friendUid;
         }
-        else {
-            authUser(false);
-        }
-    }
 
-    if (cmdID == 3) {
-        QString num = myData.split(" ").at(0);
-        friendVectorNew.clear();
-        for (int i = 0; i < num.toInt(); ++i) {
-            QString name = myData.split(" ").at(2 * i + 1);
-            QString uid = myData.split(" ").at(2 * (i + 1));
-            if (!checkfriendVectorExist(name)) {
-                struct friendInfo tempInfo;
-                tempInfo.name = name;
-                tempInfo.uid = uid.toInt();
-                friendVector.push_back(tempInfo);
-                friendVectorNew.push_back(tempInfo);
+        if (tcpSocket->bytesAvailable() < blockSize)
+            return;
+
+        QByteArray nextByte;
+        in >> nextByte;
+
+        //QString clientFolder = picFolder + QString::number((int)clientUid);
+        QString clientFolder = picFolder + QString::number(clientUid);
+        qDebug() << "server 6 " << clientFolder;
+        QDir dir(clientFolder);
+        if (!dir.exists()) {
+            dir.mkpath(".");
+        }
+        QString clientFile = clientFolder + "/" + QString::number((int)friendUid) + ".jpg";
+        qDebug() << "client file " << clientFile;
+        QFile file(clientFile);
+        file.open(QIODevice::WriteOnly);
+        file.write(nextByte);
+        file.close();
+
+        friendUid = 0;
+    }
+    else {
+
+        if (tcpSocket->bytesAvailable() < blockSize)
+            return;
+
+        QString myData;
+        in >> myData;
+
+        if (cmdID == 1) {
+            QString uid = myData.split("|").at(0);
+            QString message = myData.split("|").at(1);
+            statusLabel->setText(message);
+        }
+        if (cmdID == 2) {
+            QString auth = myData.split(" ").at(0);
+            QString uid = myData.split(" ").at(1);
+            int ret = auth.compare(QString("yes"));
+            if (!ret) {
+                clientUid = uid.toInt();
+                authUser(true);
+            }
+            else {
+                authUser(false);
             }
         }
 
-        addFriendList();
-    }
+        if (cmdID == 3) {
+            QString num = myData.split(" ").at(0);
+            friendVectorNew.clear();
+            for (int i = 0; i < num.toInt(); ++i) {
+                QString name = myData.split(" ").at(2 * i + 1);
+                QString uid = myData.split(" ").at(2 * (i + 1));
+                if (!checkfriendVectorExist(name)) {
+                    struct friendInfo tempInfo;
+                    tempInfo.name = name;
+                    tempInfo.uid = uid.toInt();
+                    tempInfo.hasClientIcon = false;
+                    tempInfo.friendLabel = new ClickableLabel;
 
-    if (cmdID == 5) {
-        qDebug() << "cmdid 5 " << myData;
-        QString num = myData.split("\n").at(0);
-        for (int i = 0; i < num.toInt(); ++i) {
-            QString uid = myData.split("\n").at(2 * i + 1);
-            QString text = myData.split("\n").at(2 * (i + 1));
-            //putMsgOnTab(uid.toInt(), text);
-
-            QString name = findNameByUid(uid.toInt());
-            bool findFriendOnTab = false;
-            int tabIndex, j;
-            for (j = 0; j < friendTabs->count(); ++j) {
-                if (name == friendTabs->tabText(j)) {
-                    findFriendOnTab = true;
-                    break;
+                    friendVector.push_back(tempInfo);
+                    friendVectorNew.push_back(tempInfo);
                 }
             }
 
-            if (findFriendOnTab) {
-                putMsgOnTab(j, text, true);
-            }
-            else {
-                tabIndex = callFriend(name);
-                putMsgOnTab(tabIndex, text, true);
+            addFriendList();
+        }
+
+        if (cmdID == 5) {
+            qDebug() << "cmdid 5 " << myData;
+            QString num = myData.split("\n").at(0);
+            for (int i = 0; i < num.toInt(); ++i) {
+                QString uid = myData.split("\n").at(2 * i + 1);
+                QString text = myData.split("\n").at(2 * (i + 1));
+                //putMsgOnTab(uid.toInt(), text);
+
+                QString name = findNameByUid(uid.toInt());
+                bool findFriendOnTab = false;
+                int tabIndex, j;
+                for (j = 0; j < friendTabs->count(); ++j) {
+                    if (name == friendTabs->tabText(j)) {
+                        findFriendOnTab = true;
+                        break;
+                    }
+                }
+
+                if (findFriendOnTab) {
+                    putMsgOnTab(j, text, true);
+                }
+                else {
+                    tabIndex = callFriend(name);
+                    putMsgOnTab(tabIndex, text, true);
+                }
             }
         }
+
+        if (cmdID == 7) {
+            qDebug() << "cmdid 7 " << myData;
+            QString num = myData.split(" ").at(0);
+            qDebug() << "num" << num;
+            for (int i = 0; i < num.toInt(); i++) {
+                QString uid = myData.split(" ").at(i + 1);
+                picUidVector.push_back(uid.toInt());
+            }
+
+        }
+
     }
 
     cmdID = 0;
@@ -129,20 +178,18 @@ void Messenger::readNetwork()
 void Messenger::addFriendList()
 {
     for (int i = 0; i < friendVectorNew.count(); ++i) {
-
-        ClickableLabel *newFriend = new ClickableLabel;
         QPixmap *pixmap = new QPixmap(100, 30);
         pixmap->fill(Qt::transparent);
         QPainter *painter = new QPainter(pixmap);
         painter->drawPixmap(0, 0, 30, 30, QPixmap(":/list/login.jpg"));
         painter->drawText(30, 0, 70, 30, Qt::AlignCenter, friendVectorNew[i].name);
         painter->end();
-        newFriend->setPixmap(*pixmap);
-        connect(newFriend, SIGNAL(clicked()), signalMapper, SLOT(map()));
-        signalMapper->setMapping(newFriend, friendVectorNew[i].uid);
-        connect(signalMapper, SIGNAL(mapped(int)), this, SLOT(handleCallFriend(int)));
-        friendListVBLayout->addWidget(newFriend);
+        friendVectorNew[i].friendLabel->setPixmap(*pixmap);
 
+        connect(friendVectorNew[i].friendLabel, SIGNAL(clicked()), signalMapper, SLOT(map()));
+        signalMapper->setMapping(friendVectorNew[i].friendLabel, friendVectorNew[i].uid);
+        connect(signalMapper, SIGNAL(mapped(int)), this, SLOT(handleCallFriend(int)));
+        friendListVBLayout->addWidget(friendVectorNew[i].friendLabel);
     }
 }
 
@@ -181,6 +228,19 @@ void Messenger::newFile()
     QFile fileSelf(clientFile);
     fileSelf.open(QIODevice::WriteOnly);
     pixmap.save(&fileSelf, "JPG");
+    pixmap = pixmap.scaled(50, 50, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    clientIcon->setPixmap(pixmap);
+
+    /*
+    QPixmap *pixmap1 = new QPixmap(100, 30);
+    pixmap1->fill(Qt::transparent);
+    QPainter *painter = new QPainter(pixmap1);
+    painter->drawPixmap(0, 0, 30, 30, pixmap);
+    painter->drawText(30, 0, 70, 30, Qt::AlignCenter, friendVector[0].name);
+    painter->end();
+
+    friendVector[0].friendLabel->setPixmap(*pixmap1);
+    */
 
     sendNetworkfile(filePath);
 }
@@ -209,13 +269,13 @@ void Messenger::loginPage()
     infoLayout->addWidget(enterBtn, 4, 0);
     infoLayout->addWidget(clearBtn, 4, 1);
 
-    infoLayout->addWidget(statusLabel, 5, 0);
+    infoLayout->addWidget(statusLabel, 5, 1);
 
     userIcon = new QLabel();
     QPixmap *p = new QPixmap(":/list/login.jpg");
     QPixmap p1(p->scaled(100, 100, Qt::IgnoreAspectRatio, Qt::SmoothTransformation));
     userIcon->setPixmap(p1);
-    infoLayout->addWidget(userIcon, 0, 1);
+    infoLayout->addWidget(userIcon, 0, 1); 
 
     QObject::connect(enterBtn, SIGNAL(clicked()), this, SLOT(clickLogin()));
     QObject::connect(clearBtn, SIGNAL(clicked()), this, SLOT(clickClear()));
@@ -352,10 +412,33 @@ void Messenger::sendGetMessage()
     sendNetworkCmd(5, QString::number(clientUid));
 }
 
+void Messenger::sendGetIconMeta()
+{
+    sendNetworkCmd(7, QString::number(clientUid));
+}
+
+void Messenger::sendGetIconByUid(int uid)
+{
+    sendNetworkCmd(8, QString::number(uid));
+}
+
 void Messenger::pollingServer()
 {
     sendGetFriendList();
     sendGetMessage();
+    sendGetIconMeta();
+    qDebug() << "picUidVector " << picUidVector.count();
+    for (int i = 0; i < picUidVector.count(); i++) {
+        qDebug() << " check pic uid " << picUidVector[i];
+        for (int j = 0; j < friendVector.count(); j++) {
+            if (friendVector[j].uid == picUidVector[i] && friendVector[j].hasClientIcon == false) {
+                qDebug() << "check uid " << friendVector[j].uid;
+                friendVector[j].hasClientIcon = true;
+                sendGetIconByUid(picUidVector[i]);
+            }
+        }
+    }
+    picUidVector.clear();
 }
 
 void Messenger::handleCallFriend(int param)
@@ -422,12 +505,12 @@ void Messenger::messagePage()
     infoLayout->addWidget(friendInfoList, 1, 1);
 
     // self pic icon
-    QLabel *cover = new QLabel();
+    clientIcon = new QLabel();
     QPixmap pix(":/list/login.jpg");
     pix = pix.scaled(50, 50, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-    cover->setPixmap(pix);
-    cover->setStyleSheet("border:2px solid grey;border-radius: 10px;background-color: transparent;");
-    infoLayout->addWidget(cover, 0, 1);
+    clientIcon->setPixmap(pix);
+    clientIcon->setStyleSheet("border:2px solid grey;border-radius: 10px;background-color: transparent;");
+    infoLayout->addWidget(clientIcon, 0, 1);
 
     infoLayout->addWidget(friendTabs, 0, 0);
 

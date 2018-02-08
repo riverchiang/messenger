@@ -2,7 +2,7 @@
 #define MESSENGER_H
 
 #include "messengertab.h"
-
+#include "clickablelabel.h"
 
 #include <QMainWindow>
 #include <QTextEdit>
@@ -40,6 +40,8 @@ struct friendInfo
 {
     QString name;
     int uid;
+    bool hasClientIcon;
+    ClickableLabel *friendLabel;
 };
 
 class Messenger : public QMainWindow
@@ -100,6 +102,8 @@ private:
     void sendNetworkfile(QString filePath);
     void sendGetFriendList();
     void sendGetMessage();
+    void sendGetIconMeta();
+    void sendGetIconByUid(int uid);
     bool checkfriendVectorExist(QString name);
     void addFriendList();
     void putMsgOnTab(int tabId, QString text, bool isFriend);
@@ -116,12 +120,16 @@ private:
     quint64 blockSize = 0;
     int clientUid = 0;
 
-    //QString picFolder = "C:/Users/A60013/Pictures/temp/client/";
-    QString picFolder = "L:/Users/admin/Pictures/temp/client/";
+    QString picFolder = "C:/Users/A60013/Pictures/temp/client/";
+    //QString picFolder = "L:/Users/admin/Pictures/temp/client/";
     QVector<struct friendInfo> friendVector;
     QVector<struct friendInfo> friendVectorNew;
     QTimer *pollingTimer;
     QSignalMapper *signalMapper;
+    QLabel *clientIcon;
+    QVector<int> picUidVector;
+
+    quint64 friendUid = 0;
 };
 
 #endif // MESSENGER_H
