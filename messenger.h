@@ -23,7 +23,6 @@
 #include <QDataStream>
 #include <QTcpSocket>
 #include <QTimer>
-#include <QPainter>
 #include <QSignalMapper>
 #include <QFileInfo>
 
@@ -66,14 +65,11 @@ private:
     Ui::Messenger *ui;
     QGridLayout *infoLayout;
 
+    enum MessengerCmd{None = 0, Register, Login, FriendList, TalkSend, TalkRecv, PicSend, PicMeta, PicRecv};
+
     // Message information
     QTextEdit *inputArea;
-
-    //QVBoxLayout *tabelLayout;
-    //QScrollArea *messageArea;
-    //QFrame *scrollFrame;
     QPushButton *sendMsgBtn;
-
     MessengerTab *friendTabs = nullptr;
     QVector<QVBoxLayout *> friendList;
 
@@ -88,7 +84,6 @@ private:
     QPushButton *clearBtn;
     QComboBox *registerLoginComboBox;
     QLabel *statusLabel;
-
     QScrollArea *friendInfoList;
     QVBoxLayout *friendListVBLayout;
 
@@ -116,7 +111,7 @@ private:
     QTcpSocket *tcpSocket = nullptr;
     QDataStream in;
 
-    quint64 cmdID = 0;
+    quint64 cmdID = None;
     quint64 blockSize = 0;
     int clientUid = 0;
 
@@ -130,6 +125,14 @@ private:
     QVector<int> picUidVector;
 
     quint64 friendUid = 0;
+
+    // Recv network function
+    void recvCmdRegister(QString recvData);
+    void recvCmdLogin(QString recvData);
+    void recvCmdFriendList(QString recvData);
+    void recvCmdTalkRecv(QString recvData);
+    void recvCmdPicMeta(QString recvData);
+    void recvCmdPicRecv();
 };
 
 #endif // MESSENGER_H

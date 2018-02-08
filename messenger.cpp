@@ -38,9 +38,120 @@ Messenger::Messenger(QWidget *parent) :
 
 }
 
+void Messenger::recvCmdRegister(QString recvData)
+{
+    QString uid = recvData.split("|").at(0);
+    QString message = recvData.split("|").at(1);
+    statusLabel->setText(message);
+}
+
+void Messenger::recvCmdLogin(QString recvData)
+{
+    QString auth = recvData.split(" ").at(0);
+    QString uid = recvData.split(" ").at(1);
+    int ret = auth.compare(QString("yes"));
+    if (!ret) {
+        clientUid = uid.toInt();
+        authUser(true);
+    }
+    else {
+        authUser(false);
+    }
+}
+
+void Messenger::recvCmdFriendList(QString recvData)
+{
+    QString num = recvData.split(" ").at(0);
+    friendVectorNew.clear();
+    for (int i = 0; i < num.toInt(); ++i) {
+        QString name = recvData.split(" ").at(2 * i + 1);
+        QString uid = recvData.split(" ").at(2 * (i + 1));
+        if (!checkfriendVectorExist(name)) {
+            struct friendInfo tempInfo;
+            tempInfo.name = name;
+            tempInfo.uid = uid.toInt();
+            tempInfo.hasClientIcon = false;
+            tempInfo.friendLabel = new ClickableLabel;
+
+            friendVector.push_back(tempInfo);
+            friendVectorNew.push_back(tempInfo);
+        }
+    }
+
+    addFriendList();
+}
+
+void Messenger::recvCmdTalkRecv(QString recvData)
+{
+    qDebug() << "cmdid 5 " << recvData;
+    QString num = recvData.split("\n").at(0);
+    for (int i = 0; i < num.toInt(); ++i) {
+        QString uid = recvData.split("\n").at(2 * i + 1);
+        QString text = recvData.split("\n").at(2 * (i + 1));
+        //putMsgOnTab(uid.toInt(), text);
+
+        QString name = findNameByUid(uid.toInt());
+        bool findFriendOnTab = false;
+        int tabIndex, j;
+        for (j = 0; j < friendTabs->count(); ++j) {
+            if (name == friendTabs->tabText(j)) {
+                findFriendOnTab = true;
+                break;
+            }
+        }
+
+        if (findFriendOnTab) {
+            putMsgOnTab(j, text, true);
+        }
+        else {
+            tabIndex = callFriend(name);
+            putMsgOnTab(tabIndex, text, true);
+        }
+    }
+}
+
+void Messenger::recvCmdPicMeta(QString recvData)
+{
+    qDebug() << "cmdid 7 " << recvData;
+    QString num = recvData.split(" ").at(0);
+    qDebug() << "num" << num;
+    for (int i = 0; i < num.toInt(); i++) {
+        QString uid = recvData.split(" ").at(i + 1);
+        picUidVector.push_back(uid.toInt());
+    }
+}
+
+void Messenger::recvCmdPicRecv()
+{
+    QByteArray nextByte;
+    in >> nextByte;
+
+    //QString clientFolder = picFolder + QString::number((int)clientUid);
+    QString clientFolder = picFolder + QString::number(clientUid);
+    qDebug() << "server 8 " << clientFolder;
+    QDir dir(clientFolder);
+    if (!dir.exists()) {
+        dir.mkpath(".");
+    }
+    QString clientFile = clientFolder + "/" + QString::number((int)friendUid) + ".jpg";
+    qDebug() << "client file " << clientFile;
+    QFile file(clientFile);
+    file.open(QIODevice::WriteOnly);
+    file.write(nextByte);
+    file.close();
+
+    for (int i = 0; i < friendVector.count(); ++i) {
+        if (friendVector[i].uid == ((int)friendUid)) {
+            friendVector[i].friendLabel->updateLabelPixmap(clientFile, friendVector[i].name);
+        }
+    }
+
+    friendUid = 0;
+}
+
 void Messenger::readNetwork()
 {
-    if (cmdID == 0) {
+    if (cmdID == None) {
         if (tcpSocket->bytesAvailable() < (int)sizeof(quint64))
             return;
         in >> cmdID;
@@ -52,8 +163,10 @@ void Messenger::readNetwork()
         in >> blockSize;
     }
 
-    if (cmdID == 8) {
+    if (cmdID == PicRecv) {
+
         qDebug() << "cmdid 8";
+        qDebug() << "size " << blockSize;
         if (friendUid == 0) {
             if (tcpSocket->bytesAvailable() < (int)sizeof(quint64))
                 return;
@@ -64,127 +177,46 @@ void Messenger::readNetwork()
         if (tcpSocket->bytesAvailable() < blockSize)
             return;
 
-        QByteArray nextByte;
-        in >> nextByte;
-
-        //QString clientFolder = picFolder + QString::number((int)clientUid);
-        QString clientFolder = picFolder + QString::number(clientUid);
-        qDebug() << "server 6 " << clientFolder;
-        QDir dir(clientFolder);
-        if (!dir.exists()) {
-            dir.mkpath(".");
-        }
-        QString clientFile = clientFolder + "/" + QString::number((int)friendUid) + ".jpg";
-        qDebug() << "client file " << clientFile;
-        QFile file(clientFile);
-        file.open(QIODevice::WriteOnly);
-        file.write(nextByte);
-        file.close();
-
-        friendUid = 0;
+        recvCmdPicRecv();
     }
     else {
 
         if (tcpSocket->bytesAvailable() < blockSize)
             return;
 
-        QString myData;
-        in >> myData;
+        QString recvData;
+        in >> recvData;
 
-        if (cmdID == 1) {
-            QString uid = myData.split("|").at(0);
-            QString message = myData.split("|").at(1);
-            statusLabel->setText(message);
+        if (cmdID == Register) {
+            recvCmdRegister(recvData);
         }
-        if (cmdID == 2) {
-            QString auth = myData.split(" ").at(0);
-            QString uid = myData.split(" ").at(1);
-            int ret = auth.compare(QString("yes"));
-            if (!ret) {
-                clientUid = uid.toInt();
-                authUser(true);
-            }
-            else {
-                authUser(false);
-            }
+        if (cmdID == Login) {
+            recvCmdLogin(recvData);
         }
 
-        if (cmdID == 3) {
-            QString num = myData.split(" ").at(0);
-            friendVectorNew.clear();
-            for (int i = 0; i < num.toInt(); ++i) {
-                QString name = myData.split(" ").at(2 * i + 1);
-                QString uid = myData.split(" ").at(2 * (i + 1));
-                if (!checkfriendVectorExist(name)) {
-                    struct friendInfo tempInfo;
-                    tempInfo.name = name;
-                    tempInfo.uid = uid.toInt();
-                    tempInfo.hasClientIcon = false;
-                    tempInfo.friendLabel = new ClickableLabel;
-
-                    friendVector.push_back(tempInfo);
-                    friendVectorNew.push_back(tempInfo);
-                }
-            }
-
-            addFriendList();
+        if (cmdID == FriendList) {
+            recvCmdFriendList(recvData);
         }
 
-        if (cmdID == 5) {
-            qDebug() << "cmdid 5 " << myData;
-            QString num = myData.split("\n").at(0);
-            for (int i = 0; i < num.toInt(); ++i) {
-                QString uid = myData.split("\n").at(2 * i + 1);
-                QString text = myData.split("\n").at(2 * (i + 1));
-                //putMsgOnTab(uid.toInt(), text);
-
-                QString name = findNameByUid(uid.toInt());
-                bool findFriendOnTab = false;
-                int tabIndex, j;
-                for (j = 0; j < friendTabs->count(); ++j) {
-                    if (name == friendTabs->tabText(j)) {
-                        findFriendOnTab = true;
-                        break;
-                    }
-                }
-
-                if (findFriendOnTab) {
-                    putMsgOnTab(j, text, true);
-                }
-                else {
-                    tabIndex = callFriend(name);
-                    putMsgOnTab(tabIndex, text, true);
-                }
-            }
+        if (cmdID == TalkRecv) {
+            recvCmdTalkRecv(recvData);
         }
 
-        if (cmdID == 7) {
-            qDebug() << "cmdid 7 " << myData;
-            QString num = myData.split(" ").at(0);
-            qDebug() << "num" << num;
-            for (int i = 0; i < num.toInt(); i++) {
-                QString uid = myData.split(" ").at(i + 1);
-                picUidVector.push_back(uid.toInt());
-            }
-
+        if (cmdID == PicMeta) {
+            recvCmdPicMeta(recvData);
         }
 
     }
 
-    cmdID = 0;
+    cmdID = None;
     blockSize = 0;
 }
 
 void Messenger::addFriendList()
 {
     for (int i = 0; i < friendVectorNew.count(); ++i) {
-        QPixmap *pixmap = new QPixmap(100, 30);
-        pixmap->fill(Qt::transparent);
-        QPainter *painter = new QPainter(pixmap);
-        painter->drawPixmap(0, 0, 30, 30, QPixmap(":/list/login.jpg"));
-        painter->drawText(30, 0, 70, 30, Qt::AlignCenter, friendVectorNew[i].name);
-        painter->end();
-        friendVectorNew[i].friendLabel->setPixmap(*pixmap);
+
+        friendVectorNew[i].friendLabel->updateLabelPixmap(":/list/login.jpg", friendVectorNew[i].name);
 
         connect(friendVectorNew[i].friendLabel, SIGNAL(clicked()), signalMapper, SLOT(map()));
         signalMapper->setMapping(friendVectorNew[i].friendLabel, friendVectorNew[i].uid);
@@ -231,16 +263,6 @@ void Messenger::newFile()
     pixmap = pixmap.scaled(50, 50, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
     clientIcon->setPixmap(pixmap);
 
-    /*
-    QPixmap *pixmap1 = new QPixmap(100, 30);
-    pixmap1->fill(Qt::transparent);
-    QPainter *painter = new QPainter(pixmap1);
-    painter->drawPixmap(0, 0, 30, 30, pixmap);
-    painter->drawText(30, 0, 70, 30, Qt::AlignCenter, friendVector[0].name);
-    painter->end();
-
-    friendVector[0].friendLabel->setPixmap(*pixmap1);
-    */
 
     sendNetworkfile(filePath);
 }
@@ -357,7 +379,7 @@ void Messenger::sendNetworkfile(QString filePath)
     out << (quint64)0;
     out << file.readAll();
     out.device()->seek(0);
-    out << (quint64)6;
+    out << (quint64)PicSend;
     out.device()->seek(sizeof(quint64));
     out << (quint64)(block.size() - (3 * sizeof(quint64)));
     out.device()->seek(2 * sizeof(quint64));
@@ -374,11 +396,11 @@ void Messenger::clickLogin()
     QString passwd = passwdLine->text();
     if (registerLoginComboBox->currentIndex() == 0)
     {
-        sendNetworkCmd(1, name + " " + passwd + " ");
+        sendNetworkCmd(Register, name + " " + passwd + " ");
         passwdLine->setText("");
     }
     else {
-        sendNetworkCmd(2, name + " " + passwd + " ");
+        sendNetworkCmd(Login, name + " " + passwd + " ");
     }
 }
 
@@ -404,22 +426,22 @@ int Messenger::callFriend(QString name)
 
 void Messenger::sendGetFriendList()
 {
-    sendNetworkCmd(3, QString::number(clientUid));
+    sendNetworkCmd(FriendList, QString::number(clientUid));
 }
 
 void Messenger::sendGetMessage()
 {
-    sendNetworkCmd(5, QString::number(clientUid));
+    sendNetworkCmd(TalkRecv, QString::number(clientUid));
 }
 
 void Messenger::sendGetIconMeta()
 {
-    sendNetworkCmd(7, QString::number(clientUid));
+    sendNetworkCmd(PicMeta, QString::number(clientUid));
 }
 
 void Messenger::sendGetIconByUid(int uid)
 {
-    sendNetworkCmd(8, QString::number(uid));
+    sendNetworkCmd(PicRecv, QString::number(uid));
 }
 
 void Messenger::pollingServer()
@@ -429,7 +451,7 @@ void Messenger::pollingServer()
     sendGetIconMeta();
     qDebug() << "picUidVector " << picUidVector.count();
     for (int i = 0; i < picUidVector.count(); i++) {
-        qDebug() << " check pic uid " << picUidVector[i];
+        //qDebug() << " check pic uid " << picUidVector[i];
         for (int j = 0; j < friendVector.count(); j++) {
             if (friendVector[j].uid == picUidVector[i] && friendVector[j].hasClientIcon == false) {
                 qDebug() << "check uid " << friendVector[j].uid;
@@ -575,7 +597,7 @@ void Messenger::clickSendMsg()
     for (int i = 0; i < friendVector.count(); ++i) {
         if (friendName == friendVector[i].name) {
             qDebug() << "send ID 4 text";
-            sendNetworkCmd(4, QString::number(clientUid) + " " + QString::number(friendVector[i].uid) +
+            sendNetworkCmd(TalkSend, QString::number(clientUid) + " " + QString::number(friendVector[i].uid) +
                            " \n" + inputText + "\n");
         }
     }
