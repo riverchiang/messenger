@@ -152,13 +152,13 @@ void Messenger::recvCmdPicRecv()
 void Messenger::readNetwork()
 {
     if (cmdID == None) {
-        if (tcpSocket->bytesAvailable() < (int)sizeof(quint64))
+        if (tcpSocket->bytesAvailable() < (qint64)sizeof(quint64))
             return;
         in >> cmdID;
     }
 
     if (blockSize == 0) {
-        if (tcpSocket->bytesAvailable() < (int)sizeof(quint64))
+        if (tcpSocket->bytesAvailable() < (qint64)sizeof(quint64))
             return;
         in >> blockSize;
     }
@@ -168,20 +168,20 @@ void Messenger::readNetwork()
         qDebug() << "cmdid 8";
         qDebug() << "size " << blockSize;
         if (friendUid == 0) {
-            if (tcpSocket->bytesAvailable() < (int)sizeof(quint64))
+            if (tcpSocket->bytesAvailable() < (qint64)sizeof(quint64))
                 return;
             in >> friendUid;
             qDebug() << friendUid;
         }
 
-        if (tcpSocket->bytesAvailable() < blockSize)
+        if (tcpSocket->bytesAvailable() < (qint64)blockSize)
             return;
 
         recvCmdPicRecv();
     }
     else {
 
-        if (tcpSocket->bytesAvailable() < blockSize)
+        if (tcpSocket->bytesAvailable() < (qint64)blockSize)
             return;
 
         QString recvData;
