@@ -446,21 +446,31 @@ void Messenger::sendGetIconByUid(int uid)
 
 void Messenger::pollingServer()
 {
-    sendGetFriendList();
-    sendGetMessage();
-    sendGetIconMeta();
-    qDebug() << "picUidVector " << picUidVector.count();
-    for (int i = 0; i < picUidVector.count(); i++) {
-        //qDebug() << " check pic uid " << picUidVector[i];
-        for (int j = 0; j < friendVector.count(); j++) {
-            if (friendVector[j].uid == picUidVector[i] && friendVector[j].hasClientIcon == false) {
-                qDebug() << "check uid " << friendVector[j].uid;
-                friendVector[j].hasClientIcon = true;
-                sendGetIconByUid(picUidVector[i]);
+    if (messageBox.count() > 0) {  // send message have higher priority
+        for (int i = 0; i < messageBox.count(); i++)
+        {
+            sendNetworkCmd(TalkSend, QString::number(clientUid) + " " + QString::number(messageBox[i].friendUid) +
+                             " \n" + messageBox[i].message + "\n");
+        }
+        messageBox.clear();
+    }
+    else {
+        sendGetFriendList();
+        sendGetMessage();
+        sendGetIconMeta();
+        qDebug() << "picUidVector " << picUidVector.count();
+        for (int i = 0; i < picUidVector.count(); i++) {
+            //qDebug() << " check pic uid " << picUidVector[i];
+            for (int j = 0; j < friendVector.count(); j++) {
+                if (friendVector[j].uid == picUidVector[i] && friendVector[j].hasClientIcon == false) {
+                    qDebug() << "check uid " << friendVector[j].uid;
+                    friendVector[j].hasClientIcon = true;
+                    sendGetIconByUid(picUidVector[i]);
+                }
             }
         }
+        picUidVector.clear();
     }
-    picUidVector.clear();
 }
 
 void Messenger::handleCallFriend(int param)
@@ -497,17 +507,6 @@ void Messenger::messagePage()
     friendInfoList->setWidgetResizable(true);
 
     signalMapper = new QSignalMapper(this); // for friend dialog
-    /*
-    messageArea = new QScrollArea;
-    scrollFrame = new QFrame;
-    scrollFrame->setStyleSheet("background-color:white;");
-    tabelLayout = new QVBoxLayout(scrollFrame);
-
-    messageArea->setWidget(scrollFrame);
-    messageArea->setWidgetResizable(true);   // important
-
-    infoLayout->addWidget(messageArea, 0, 0);
-    */
 
     QString clientFolder = picFolder + QString::number(clientUid);
     QDir dir(clientFolder);
@@ -522,7 +521,8 @@ void Messenger::messagePage()
     friendTabs = new MessengerTab(this);
 
     friendTabs->setStyleSheet("QTabBar::tab { min-width: 300px;}");
-    //callFriend("blank");
+
+    messageBox.clear();
 
     infoLayout->addWidget(friendInfoList, 1, 1);
 
@@ -596,9 +596,11 @@ void Messenger::clickSendMsg()
 
     for (int i = 0; i < friendVector.count(); ++i) {
         if (friendName == friendVector[i].name) {
-            qDebug() << "send ID 4 text";
-            sendNetworkCmd(TalkSend, QString::number(clientUid) + " " + QString::number(friendVector[i].uid) +
-                           " \n" + inputText + "\n");
+            qDebug() << "add message to message box";
+            struct friendMessage tempMessage;
+            tempMessage.friendUid = friendVector[i].uid;
+            tempMessage.message = inputText;
+            messageBox.push_back(tempMessage);
         }
     }
 

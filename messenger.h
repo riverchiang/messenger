@@ -43,6 +43,12 @@ struct friendInfo
     ClickableLabel *friendLabel;
 };
 
+struct friendMessage
+{
+    int friendUid;
+    QString message;
+};
+
 class Messenger : public QMainWindow
 {
     Q_OBJECT
@@ -123,6 +129,7 @@ private:
     QSignalMapper *signalMapper;
     QLabel *clientIcon;
     QVector<int> picUidVector;
+    QVector<struct friendMessage> messageBox;
 
     quint64 friendUid = 0;
 
