@@ -35,7 +35,6 @@ Messenger::Messenger(QWidget *parent) :
     connect(pollingTimer, SIGNAL(timeout()), this, SLOT(pollingServer()));
 
     loginPage();
-
 }
 
 void Messenger::recvCmdRegister(QString recvData)
@@ -88,7 +87,6 @@ void Messenger::recvCmdTalkRecv(QString recvData)
     for (int i = 0; i < num.toInt(); ++i) {
         QString uid = recvData.split("\n").at(2 * i + 1);
         QString text = recvData.split("\n").at(2 * (i + 1));
-        //putMsgOnTab(uid.toInt(), text);
 
         QString name = findNameByUid(uid.toInt());
         bool findFriendOnTab = false;
@@ -101,11 +99,11 @@ void Messenger::recvCmdTalkRecv(QString recvData)
         }
 
         if (findFriendOnTab) {
-            putMsgOnTab(j, text, true);
+            putMsgOnTab(j, true, text, true, nullptr);
         }
         else {
             tabIndex = callFriend(name);
-            putMsgOnTab(tabIndex, text, true);
+            putMsgOnTab(tabIndex, true, text, true, nullptr);
         }
     }
 }
@@ -126,7 +124,6 @@ void Messenger::recvCmdPicRecv()
     QByteArray nextByte;
     in >> nextByte;
 
-    //QString clientFolder = picFolder + QString::number((int)clientUid);
     QString clientFolder = picFolder + QString::number(clientUid);
     qDebug() << "server 8 " << clientFolder;
     QDir dir(clientFolder);
@@ -149,12 +146,41 @@ void Messenger::recvCmdPicRecv()
     friendUid = 0;
 }
 
+void Messenger::recvCmdGifRecv(QString recvData)
+{
+    qDebug() << "cmdid 5 " << recvData;
+    QString num = recvData.split("\n").at(0);
+    for (int i = 0; i < num.toInt(); ++i) {
+        QString uid = recvData.split("\n").at(2 * i + 1);
+        QString gifNum = recvData.split("\n").at(2 * (i + 1));
+
+        QString name = findNameByUid(uid.toInt());
+        bool findFriendOnTab = false;
+        int tabIndex, j;
+        for (j = 0; j < friendTabs->count(); ++j) {
+            if (name == friendTabs->tabText(j)) {
+                findFriendOnTab = true;
+                break;
+            }
+        }
+
+        if (findFriendOnTab) {
+            putMsgOnTab(j, false, nullptr, true, gifFilePathName(gifNum.toInt()));
+        }
+        else {
+            tabIndex = callFriend(name);
+            putMsgOnTab(tabIndex, false, nullptr, true, gifFilePathName(gifNum.toInt()));
+        }
+    }
+}
+
 void Messenger::readNetwork()
 {
     if (cmdID == None) {
         if (tcpSocket->bytesAvailable() < (qint64)sizeof(quint64))
             return;
         in >> cmdID;
+        qDebug() << "cmd Id " << cmdID;
     }
 
     if (blockSize == 0) {
@@ -206,6 +232,10 @@ void Messenger::readNetwork()
             recvCmdPicMeta(recvData);
         }
 
+        if (cmdID == GifRecv) {
+            recvCmdGifRecv(recvData);
+        }
+
     }
 
     cmdID = None;
@@ -217,10 +247,8 @@ void Messenger::addFriendList()
     for (int i = 0; i < friendVectorNew.count(); ++i) {
 
         friendVectorNew[i].friendLabel->updateLabelPixmap(":/list/login.jpg", friendVectorNew[i].name);
-
         connect(friendVectorNew[i].friendLabel, SIGNAL(clicked()), signalMapper, SLOT(map()));
         signalMapper->setMapping(friendVectorNew[i].friendLabel, friendVectorNew[i].uid);
-        connect(signalMapper, SIGNAL(mapped(int)), this, SLOT(handleCallFriend(int)));
         friendListVBLayout->addWidget(friendVectorNew[i].friendLabel);
     }
 }
@@ -391,7 +419,6 @@ void Messenger::sendNetworkfile(QString filePath)
 
 void Messenger::clickLogin()
 {
-    //qDebug() << registerLoginComboBox->currentIndex();
     QString name = nameLine->text();
     QString passwd = passwdLine->text();
     if (registerLoginComboBox->currentIndex() == 0)
@@ -446,31 +473,23 @@ void Messenger::sendGetIconByUid(int uid)
 
 void Messenger::pollingServer()
 {
-    if (messageBox.count() > 0) {  // send message have higher priority
-        for (int i = 0; i < messageBox.count(); i++)
-        {
-            sendNetworkCmd(TalkSend, QString::number(clientUid) + " " + QString::number(messageBox[i].friendUid) +
-                             " \n" + messageBox[i].message + "\n");
-        }
-        messageBox.clear();
-    }
-    else {
-        sendGetFriendList();
-        sendGetMessage();
-        sendGetIconMeta();
-        qDebug() << "picUidVector " << picUidVector.count();
-        for (int i = 0; i < picUidVector.count(); i++) {
-            //qDebug() << " check pic uid " << picUidVector[i];
-            for (int j = 0; j < friendVector.count(); j++) {
-                if (friendVector[j].uid == picUidVector[i] && friendVector[j].hasClientIcon == false) {
-                    qDebug() << "check uid " << friendVector[j].uid;
-                    friendVector[j].hasClientIcon = true;
-                    sendGetIconByUid(picUidVector[i]);
-                }
+    sendGetFriendList();
+    sendGetMessage();
+    sendGetIconMeta();
+
+    qDebug() << "picUidVector " << picUidVector.count();
+    for (int i = 0; i < picUidVector.count(); i++) {
+        //qDebug() << " check pic uid " << picUidVector[i];
+        for (int j = 0; j < friendVector.count(); j++) {
+            if (friendVector[j].uid == picUidVector[i] && friendVector[j].hasClientIcon == false) {
+            qDebug() << "check uid " << friendVector[j].uid;
+            friendVector[j].hasClientIcon = true;
+            sendGetIconByUid(picUidVector[i]);
             }
         }
-        picUidVector.clear();
     }
+    picUidVector.clear();
+
 }
 
 void Messenger::handleCallFriend(int param)
@@ -496,6 +515,7 @@ void Messenger::handleCallFriend(int param)
 void Messenger::messagePage()
 {
     sendMsgBtn = new QPushButton("send");
+    selectGifBtn = new QPushButton("GIF");
     inputArea = new QTextEdit(this);
     inputArea->setFixedSize(300, 300);
     inputArea->setFocus();
@@ -507,12 +527,17 @@ void Messenger::messagePage()
     friendInfoList->setWidgetResizable(true);
 
     signalMapper = new QSignalMapper(this); // for friend dialog
+    connect(signalMapper, SIGNAL(mapped(int)), this, SLOT(handleCallFriend(int)));
+    gifSignalMapper = new QSignalMapper(this);
+    connect(gifSignalMapper, SIGNAL(mapped(int)), this, SLOT(handleGifSend(int)));
 
     QString clientFolder = picFolder + QString::number(clientUid);
     QDir dir(clientFolder);
     if (!dir.exists()) {
         dir.mkpath(".");
     }
+
+    picUidVector.clear();
 
     if (!pollingTimer->isActive())
         pollingTimer->start();
@@ -521,8 +546,6 @@ void Messenger::messagePage()
     friendTabs = new MessengerTab(this);
 
     friendTabs->setStyleSheet("QTabBar::tab { min-width: 300px;}");
-
-    messageBox.clear();
 
     infoLayout->addWidget(friendInfoList, 1, 1);
 
@@ -541,8 +564,10 @@ void Messenger::messagePage()
 
     infoLayout->addWidget(inputArea, 1, 0);
     infoLayout->addWidget(sendMsgBtn, 2, 0);
+    infoLayout->addWidget(selectGifBtn, 2, 1);
 
     QObject::connect(sendMsgBtn, SIGNAL(clicked()),this, SLOT(clickSendMsg()));
+    QObject::connect(selectGifBtn, SIGNAL(clicked()),this, SLOT(clickGifPage()));
 }
 
 QString Messenger::findNameByUid(int uid)
@@ -559,8 +584,20 @@ QString Messenger::findNameByUid(int uid)
     return name;
 }
 
+int Messenger::findUidByName(QString name)
+{
+    int uid = 0;
+    for (int i = 0; i < friendVector.count(); i++)
+    {
+        if (friendVector[i].name == name) {
+            uid = friendVector[i].uid;
+            break;
+        }
+    }
+    return uid;
+}
 
-void Messenger::putMsgOnTab(int tabId, QString text, bool isFriend)
+void Messenger::putMsgOnTab(int tabId, bool isText,QString text, bool isFriend, QString gifFilePath)
 {
     QLabel *new_label1 = new QLabel;
     QLabel *new_label2 = new QLabel;
@@ -568,13 +605,29 @@ void Messenger::putMsgOnTab(int tabId, QString text, bool isFriend)
     new_label1->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     new_label2->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     if (isFriend) {
-        new_label1->setText(text);
-        new_label1->setStyleSheet("color: black;background-color:#1aed4a;font: bold 14px;border-style: outset;border-width: 2px;border-radius: 10px;border-color: beige;min-width: 10em;");
+        if (isText) {
+            new_label1->setText(text);
+            new_label1->setStyleSheet("color: black;background-color:#1aed4a;font: bold 14px;border-style: outset;border-width: 2px;border-radius: 10px;border-color: beige;min-width: 10em;");
+        } else {
+            QMovie *movie = new QMovie(gifFilePath);
+            movie->setScaledSize(QSize(100, 100));
+            new_label1->setMovie(movie);
+            movie->start();
+        }
+        //new_label1->setStyleSheet("color: black;background-color:#1aed4a;font: bold 14px;border-style: outset;border-width: 2px;border-radius: 10px;border-color: beige;min-width: 10em;");
         new_label2->setStyleSheet("min-width: 10em;");
     }
     else {
-        new_label2->setText(text);
-        new_label2->setStyleSheet("color: black;background-color:#eff0f4;font: bold 14px;border-style: outset;border-width: 2px;border-radius: 10px;border-color: beige;min-width: 10em;");
+        if (isText) {
+            new_label2->setText(text);
+            new_label2->setStyleSheet("color: black;background-color:#eff0f4;font: bold 14px;border-style: outset;border-width: 2px;border-radius: 10px;border-color: beige;min-width: 10em;");
+        } else {
+            QMovie *movie = new QMovie(gifFilePath);
+            movie->setScaledSize(QSize(100, 100));
+            new_label1->setMovie(movie);
+            movie->start();
+        }
+        //new_label2->setStyleSheet("color: black;background-color:#eff0f4;font: bold 14px;border-style: outset;border-width: 2px;border-radius: 10px;border-color: beige;min-width: 10em;");
         new_label1->setStyleSheet("min-width: 10em;");
     }
     QHBoxLayout *labelLayout = new QHBoxLayout;
@@ -584,6 +637,65 @@ void Messenger::putMsgOnTab(int tabId, QString text, bool isFriend)
     friendList.at(tabId)->addLayout(labelLayout);
 }
 
+void Messenger::handleGifSend(int gifNum)
+{
+    QString friendName;
+    int uid;
+    //struct friendMessage tempMessage;
+
+    friendName = friendTabs->tabText(friendTabs->currentIndex());
+    uid = findUidByName(friendName);
+
+    if (uid > 0) {
+        sendNetworkCmd(GifSend, QString::number(clientUid) + " " + QString::number(uid) +
+                                     " \n" + QString::number(gifNum) + "\n");
+        putMsgOnTab(friendTabs->currentIndex(), false, nullptr, false, gifFilePathName(gifNum));
+    }
+}
+
+QString Messenger::gifFilePathName(int id)
+{
+    switch (id) {
+    case 0:
+        return ":/list/giphy.gif";
+        break;
+    case 1:
+        return ":/list/tenor.gif";
+        break;
+    case 2:
+        return ":/list/cat.gif";
+        break;
+    default:
+        return nullptr;
+        break;
+    }
+}
+
+void Messenger::clickGifPage()
+{
+    QDialog *dialog = new QDialog;
+    dialog->setWindowTitle(tr("Select GIF"));
+    dialog->setMaximumSize(300, 300);
+    dialog->setMinimumSize(300, 300);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    QGridLayout *newLayout = new QGridLayout;
+
+    ClickableLabel *gifLabel[3];
+    for (int i = 0 ; i < 3; ++i) {
+        gifLabel[i] = new ClickableLabel;
+        gifLabel[i]->setGif(gifFilePathName(i));
+    }
+
+    for (int i = 0; i < 3; ++i)
+    {
+        connect(gifLabel[i], SIGNAL(clicked()), gifSignalMapper, SLOT(map()));
+        gifSignalMapper->setMapping(gifLabel[i], i);
+        newLayout->addWidget(gifLabel[i], 0, i);
+    }
+
+    dialog->setLayout(newLayout);
+    dialog->show();
+}
 
 void Messenger::clickSendMsg()
 {
@@ -594,17 +706,12 @@ void Messenger::clickSendMsg()
     inputText = inputArea->toPlainText();
     friendName = friendTabs->tabText(friendTabs->currentIndex());
 
-    for (int i = 0; i < friendVector.count(); ++i) {
-        if (friendName == friendVector[i].name) {
-            qDebug() << "add message to message box";
-            struct friendMessage tempMessage;
-            tempMessage.friendUid = friendVector[i].uid;
-            tempMessage.message = inputText;
-            messageBox.push_back(tempMessage);
-        }
+    int uid = findUidByName(friendName);
+    if (uid > 0) {
+        sendNetworkCmd(TalkSend, QString::number(clientUid) + " " + QString::number(uid) +
+                                     " \n" + inputText + "\n");
+        putMsgOnTab(friendTabs->currentIndex(), true, inputText, false, nullptr);
     }
-
-    putMsgOnTab(friendTabs->currentIndex(), inputText, false);
 }
 
 Messenger::~Messenger()

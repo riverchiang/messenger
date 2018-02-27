@@ -1,5 +1,8 @@
 <RCC>
     <qresource prefix="/list">
         <file>login.jpg</file>
+        <file>cat.gif</file>
+        <file>giphy.gif</file>
+        <file>tenor.gif</file>
     </qresource>
 </RCC>

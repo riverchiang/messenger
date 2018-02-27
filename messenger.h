@@ -12,7 +12,7 @@
 #include <QScrollArea>
 #include <QVBoxLayout>
 #include <QGridLayout>
-#include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QGroupBox>
 #include <QLineEdit>
@@ -25,6 +25,8 @@
 #include <QTimer>
 #include <QSignalMapper>
 #include <QFileInfo>
+#include <QMovie>
+#include <QDialog>
 
 #include <QDebug>
 
@@ -45,8 +47,10 @@ struct friendInfo
 
 struct friendMessage
 {
+    bool isText;
     int friendUid;
     QString message;
+    int gifNum;
 };
 
 class Messenger : public QMainWindow
@@ -61,21 +65,24 @@ private slots:
     void clickSendMsg();
     void clickLogin();
     void clickClear();
+    void clickGifPage();
 
     void newFile();
     void readNetwork();
     void pollingServer();
     void handleCallFriend(int param);
+    void handleGifSend(int gifNum);
 
 private:
     Ui::Messenger *ui;
     QGridLayout *infoLayout;
 
-    enum MessengerCmd{None = 0, Register, Login, FriendList, TalkSend, TalkRecv, PicSend, PicMeta, PicRecv};
+    enum MessengerCmd{None = 0, Register, Login, FriendList, TalkSend, TalkRecv, PicSend, PicMeta, PicRecv, GifSend, GifRecv};
 
     // Message information
     QTextEdit *inputArea;
     QPushButton *sendMsgBtn;
+    QPushButton *selectGifBtn;
     MessengerTab *friendTabs = nullptr;
     QVector<QVBoxLayout *> friendList;
 
@@ -107,9 +114,11 @@ private:
     void sendGetIconByUid(int uid);
     bool checkfriendVectorExist(QString name);
     void addFriendList();
-    void putMsgOnTab(int tabId, QString text, bool isFriend);
+    void putMsgOnTab(int tabId, bool isText,QString text, bool isFriend, QString gifFilePath);
     QString findNameByUid(int uid);
+    int findUidByName(QString name);
     bool fileExists(QString path);
+    QString gifFilePathName(int id);
 
     QMenu *fileMenu;
     QAction *openAct;
@@ -127,10 +136,9 @@ private:
     QVector<struct friendInfo> friendVectorNew;
     QTimer *pollingTimer;
     QSignalMapper *signalMapper;
+    QSignalMapper *gifSignalMapper;
     QLabel *clientIcon;
     QVector<int> picUidVector;
-    QVector<struct friendMessage> messageBox;
-
     quint64 friendUid = 0;
 
     // Recv network function
@@ -140,6 +148,8 @@ private:
     void recvCmdTalkRecv(QString recvData);
     void recvCmdPicMeta(QString recvData);
     void recvCmdPicRecv();
+    void recvCmdGifRecv(QString recvData);
+
 };
 
 #endif // MESSENGER_H

@@ -21,3 +21,11 @@ void ClickableLabel::updateLabelPixmap(QString pixFilePath, QString labelName)
     painter->end();
     setPixmap(*pixmapTarget);
 }
+
+void ClickableLabel::setGif(QString gifFilePath)
+{
+    QMovie *movie = new QMovie(gifFilePath);
+    movie->setScaledSize(QSize(50, 50));
+    setMovie(movie);
+    movie->start();
+}
